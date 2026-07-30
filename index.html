@@ -9,7 +9,7 @@
   :root{
     --bg:#0f1720; --card:#17212b; --line:#2a3746;
     --ink:#eaf2fb; --sub:#8aa0b6;
-    --brand:#e11d2a;        /* แดงไปรษณีย์ */
+    --brand:#e11d2a;
     --ok:#12b76a; --warn:#f5a524; --err:#ef4444;
     --tap:#1f2b38;
   }
@@ -36,7 +36,7 @@
   #reader{border-radius:12px;overflow:hidden;margin-top:6px}
   .toggle{display:flex;align-items:center;justify-content:space-between;
     padding:10px 0;border-top:1px solid var(--line);margin-top:8px}
-  .switch{position:relative;width:52px;height:30px}
+  .switch{position:relative;width:52px;height:30px;flex:0 0 auto}
   .switch input{display:none}
   .slider{position:absolute;inset:0;background:var(--tap);border-radius:30px;
     transition:.2s;border:1px solid var(--line)}
@@ -63,6 +63,18 @@
   .foldhead{cursor:pointer;display:flex;justify-content:space-between;align-items:center}
   .foldbody{display:none;margin-top:8px}
   .foldbody.open{display:block}
+  /* ---- เลือกแถวปลายทาง ---- */
+  .banner{padding:10px 12px;border-radius:10px;background:var(--tap);border:1px solid var(--line);
+    font-size:14px;color:var(--sub);margin-bottom:10px;text-align:center}
+  .banner.sel{background:rgba(18,183,106,.14);border-color:var(--ok);color:var(--ink);font-weight:700}
+  #rowList{max-height:280px;overflow:auto;margin-top:8px}
+  .rowitem{display:flex;justify-content:space-between;align-items:center;gap:10px;
+    padding:11px 12px;background:#0d151d;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;cursor:pointer}
+  .rowitem.sel{border-color:var(--ok);background:rgba(18,183,106,.10)}
+  .rowitem b{font-size:14px}
+  .rowitem .rc{font-size:12px;color:var(--sub);margin-top:2px}
+  .rowitem .tk{font-size:12px;color:var(--sub);letter-spacing:.3px;text-align:right}
+  .rowitem .wait{font-size:12px;color:var(--warn);font-weight:700}
 </style>
 </head>
 <body>
@@ -88,8 +100,19 @@
     </div>
   </div>
 
+  <!-- เลือกแถวปลายทาง -->
+  <div class="card">
+    <button class="btn gray small" id="loadBtn">🔄 โหลดรายการจากชีต</button>
+    <div class="toggle">
+      <span>แสดงเฉพาะแถวที่รอเลข</span>
+      <label class="switch"><input type="checkbox" id="onlyBlank" checked><span class="slider"></span></label>
+    </div>
+    <div id="rowList"><div class="hint">กด "โหลดรายการ" เพื่อดึงแถวจากชีตมาเลือก (ถ้าไม่เลือก = โหมดอัตโนมัติ)</div></div>
+  </div>
+
   <!-- สแกน -->
   <div class="card">
+    <div class="banner" id="targetBanner">โหมดอัตโนมัติ: เติมช่องว่างถัดไป</div>
     <button class="btn" id="startBtn">▶ เริ่มสแกน</button>
     <button class="btn gray" id="stopBtn" style="display:none">■ หยุดกล้อง</button>
     <div id="reader"></div>
@@ -102,7 +125,6 @@
       </label>
     </div>
 
-    <!-- กล่องผลลัพธ์ล่าสุด -->
     <div class="result" id="result">
       <div class="num" id="resNum"></div>
       <div class="msg" id="resMsg"></div>
@@ -113,7 +135,7 @@
     </div>
   </div>
 
-  <!-- ป้อนมือ (เผื่อกล้องอ่านไม่ออก) -->
+  <!-- ป้อนมือ -->
   <div class="card">
     <label>ป้อนเลขเอง (สำรอง)</label>
     <div class="row">
@@ -129,32 +151,25 @@
 </div>
 
 <script>
-/* ---------- เก็บ/อ่านค่าตั้ง (กันพังถ้าเปิดในโหมดที่ไม่มี localStorage) ---------- */
+/* ---------- เก็บ/อ่านค่าตั้ง ---------- */
 function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
 function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+function escapeHtml(s){ return (s||'').toString().replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
-const cfg = {
-  url:   lsGet('scan_url')   || '',
-  token: lsGet('scan_token') || ''
-};
-
+const cfg = { url: lsGet('scan_url') || '', token: lsGet('scan_token') || '' };
 const $ = id => document.getElementById(id);
 $('cfgUrl').value = cfg.url;
 $('cfgToken').value = cfg.token;
 
-/* พับ/กางกล่องตั้งค่า — ถ้ายังไม่ตั้งค่า ให้กางไว้ */
 const foldBody = $('foldBody'), foldArrow = $('foldArrow');
 function setFold(open){ foldBody.classList.toggle('open',open); foldArrow.textContent = open?'▾':'▸'; }
 setFold(!cfg.url);
 $('foldHead').onclick = () => setFold(!foldBody.classList.contains('open'));
-
 $('saveCfg').onclick = () => {
   cfg.url = $('cfgUrl').value.trim();
   cfg.token = $('cfgToken').value.trim();
-  lsSet('scan_url', cfg.url);
-  lsSet('scan_token', cfg.token);
-  setFold(false);
-  toast('บันทึกแล้ว');
+  lsSet('scan_url', cfg.url); lsSet('scan_token', cfg.token);
+  setFold(false); toast('บันทึกแล้ว');
 };
 
 /* ---------- เสียง/สั่น ---------- */
@@ -190,6 +205,60 @@ function addLog(kind, num, note){
 }
 function toast(m){ showResult('ok','',m); setTimeout(()=>$('result').classList.remove('show'),1500); }
 
+/* ---------- เลือกแถวปลายทาง ---------- */
+let rowsData = [];
+let selectedRow = null;
+
+async function loadRows(){
+  if(!cfg.url){ setFold(true); showResult('err','','ยังไม่ได้ตั้งค่าลิงก์ Web App'); return; }
+  $('rowList').innerHTML = '<div class="hint">กำลังโหลด...</div>';
+  try{
+    const res = await fetch(cfg.url, { method:'POST', body:new URLSearchParams({ token:cfg.token, action:'list' }) });
+    const data = await res.json();
+    if(data.ok){ rowsData = data.rows || []; renderRows(); }
+    else { $('rowList').innerHTML = '<div class="hint">โหลดไม่ได้: '+escapeHtml(data.msg||'')+'</div>'; }
+  }catch(e){
+    $('rowList').innerHTML = '<div class="hint">โหลดไม่ได้ (อ่านผลไม่ได้) — เช็คลิงก์/รหัส</div>';
+  }
+}
+function renderRows(){
+  const onlyBlank = $('onlyBlank').checked;
+  const list = $('rowList'); list.innerHTML = '';
+  let shown = 0;
+  rowsData.forEach(r=>{
+    if(onlyBlank && r.track) return;
+    shown++;
+    const div = document.createElement('div');
+    div.className = 'rowitem' + (selectedRow===r.row ? ' sel' : '');
+    const right = r.track ? ('<span class="tk">'+escapeHtml(r.track)+'</span>') : '<span class="wait">รอเลข</span>';
+    div.innerHTML = '<div><b>แถว '+r.row+'</b><div class="rc">'+escapeHtml(r.recipient||'')+'</div></div>'+right;
+    div.onclick = ()=>{ selectedRow = r.row; renderRows(); updateBanner(); };
+    list.appendChild(div);
+  });
+  if(shown===0){
+    list.innerHTML = '<div class="hint">'+(rowsData.length ? 'ทุกแถวมีเลขครบแล้ว (ปิดตัวกรองเพื่อดูทั้งหมด)' : 'ยังไม่มีข้อมูล — กดโหลดรายการ')+'</div>';
+  }
+}
+function updateBanner(){
+  const b = $('targetBanner');
+  if(selectedRow){
+    const r = rowsData.find(x=>x.row===selectedRow);
+    b.className = 'banner sel';
+    b.textContent = 'จะลงแถวที่ '+selectedRow+(r && r.recipient ? (' — '+r.recipient) : '');
+  }else{
+    b.className = 'banner';
+    b.textContent = 'โหมดอัตโนมัติ: เติมช่องว่างถัดไป';
+  }
+}
+function advanceTarget(curRow){
+  const idx = rowsData.findIndex(x=>x.row===curRow);
+  let next = null;
+  for(let i=idx+1;i<rowsData.length;i++){ if(!rowsData[i].track){ next = rowsData[i].row; break; } }
+  selectedRow = next; // ไม่มีแถวว่างถัดไป = กลับโหมดอัตโนมัติ
+}
+$('loadBtn').onclick = loadRows;
+$('onlyBlank').onchange = renderRows;
+
 /* ---------- ส่งเข้าชีต ---------- */
 async function sendToSheet(code){
   if(!cfg.url){ setFold(true); showResult('err','','ยังไม่ได้ตั้งค่าลิงก์ Web App'); return; }
@@ -198,27 +267,30 @@ async function sendToSheet(code){
   showResult('ok', code, 'กำลังส่ง...');
   busy = true;
   try{
-    const res = await fetch(cfg.url, {
-      method:'POST',
-      body:new URLSearchParams({ token:cfg.token, tracking:code })
-    });
+    const params = { token:cfg.token, tracking:code };
+    if(selectedRow) params.row = selectedRow;
+    const res = await fetch(cfg.url, { method:'POST', body:new URLSearchParams(params) });
     const data = await res.json();
     if(data.ok){
       sentThisSession.add(code);
-      showResult('ok', code, '✔ ลงแถวที่ '+data.row+' — '+(data.recipient||''));
+      const r = rowsData.find(x=>x.row===data.row);
+      if(r) r.track = code;
+      const note = data.overwrote ? ' (เขียนทับ)' : '';
+      showResult('ok', code, '✔ ลงแถวที่ '+data.row+' — '+(data.recipient||'')+note);
       addLog('ok', code, 'แถว '+data.row);
+      if(selectedRow) advanceTarget(data.row);
+      renderRows(); updateBanner();
     }else if(data.code==='DUP'){
       showResult('warn', code, '⚠ เลขนี้มีอยู่แล้ว (แถว '+(data.row||'?')+')');
       addLog('warn', code, 'ซ้ำ');
     }else if(data.code==='FULL'){
-      showResult('warn', code, '⚠ ไม่มีช่องว่างในคอลัมน์ G แล้ว');
+      showResult('warn', code, '⚠ ไม่มีช่องว่างในคอลัมน์ G — เลือกแถวเองด้านบน');
       addLog('warn', code, 'ไม่มีช่องว่าง');
     }else{
       showResult('err', code, '✖ '+(data.msg||'ส่งไม่สำเร็จ'));
       addLog('err', code, data.code||'ผิดพลาด');
     }
   }catch(err){
-    // อ่านผลไม่ได้ (เช่นถูก CORS บล็อก) แต่ส่วนใหญ่ข้อมูลลงชีตแล้ว
     sentThisSession.add(code);
     showResult('warn', code, 'ส่งแล้ว แต่ยืนยันผลไม่ได้ — เช็คในชีตอีกที');
     addLog('warn', code, 'ส่งแล้ว(ไม่ยืนยัน)');
@@ -227,14 +299,13 @@ async function sendToSheet(code){
   }
 }
 
-/* ---------- โหมดยืนยัน ---------- */
+/* ---------- โหมดยืนยัน + กันสแกนรัว ---------- */
 let pendingCode = null;
 let lastCode = null, lastAt = 0, busy = false;
 function handleScan(code){
   code = (code||'').trim().toUpperCase();
   if(!code) return;
   const now = Date.now();
-  // กันยิงรัวโค้ดเดิม และกันส่งซ้อนระหว่างรอยืนยัน/กำลังส่ง
   if(busy || pendingCode) return;
   if(code === lastCode && now - lastAt < 3000) return;
   lastCode = code; lastAt = now;
@@ -260,31 +331,25 @@ $('btnCancel').onclick = () => {
   resumeScan();
 };
 
-/* ---------- กล้อง / html5-qrcode ---------- */
+/* ---------- กล้อง ---------- */
 let qr = null, running = false;
 const fmt = (typeof Html5QrcodeSupportedFormats!=='undefined') ? [
   Html5QrcodeSupportedFormats.CODE_128,
   Html5QrcodeSupportedFormats.CODE_39,
   Html5QrcodeSupportedFormats.QR_CODE
 ] : undefined;
-
 function qrbox(w,h){
   const min = Math.min(w,h);
   const width = Math.floor(Math.min(320, min*0.9));
   return { width:width, height:Math.floor(width*0.55) };
 }
-
 async function startScan(){
   if(running) return;
   try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
   qr = new Html5Qrcode("reader", { formatsToSupport: fmt, verbose:false });
   try{
-    await qr.start(
-      { facingMode:"environment" },
-      { fps:10, qrbox:qrbox, aspectRatio:1.4 },
-      (decoded)=>handleScan(decoded),
-      ()=>{}
-    );
+    await qr.start({ facingMode:"environment" }, { fps:10, qrbox:qrbox, aspectRatio:1.4 },
+      (decoded)=>handleScan(decoded), ()=>{});
     running = true;
     $('startBtn').style.display='none';
     $('stopBtn').style.display='block';
@@ -301,7 +366,6 @@ async function stopScan(){
 }
 function pauseScan(){ try{ qr && running && qr.pause(true); }catch(e){} }
 function resumeScan(){ try{ qr && running && qr.resume(); }catch(e){} }
-
 $('startBtn').onclick = startScan;
 $('stopBtn').onclick  = stopScan;
 
