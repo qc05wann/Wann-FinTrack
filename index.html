@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ยิงเลขแทร็คกิ้ง</title>
+<title>Wann-FinTrack</title>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
   :root{
@@ -69,8 +69,8 @@
 <div class="wrap">
 
   <header>
-    <div class="logo">RJ</div>
-    <h1>ยิงเลขแทร็คกิ้งเข้าชีต<small>เติมช่องว่างถัดไปในคอลัมน์ G อัตโนมัติ</small></h1>
+    <div class="logo">FT</div>
+    <h1>Wann-FinTrack<small>ยิงเลขแทร็คกิ้งเข้าชีต · แผนกการเงิน</small></h1>
   </header>
 
   <!-- ตั้งค่า (พับเก็บได้) -->
@@ -196,6 +196,7 @@ async function sendToSheet(code){
   if(sentThisSession.has(code)){ showResult('warn',code,'สแกนซ้ำในรอบนี้แล้ว'); return; }
 
   showResult('ok', code, 'กำลังส่ง...');
+  busy = true;
   try{
     const res = await fetch(cfg.url, {
       method:'POST',
@@ -221,14 +222,22 @@ async function sendToSheet(code){
     sentThisSession.add(code);
     showResult('warn', code, 'ส่งแล้ว แต่ยืนยันผลไม่ได้ — เช็คในชีตอีกที');
     addLog('warn', code, 'ส่งแล้ว(ไม่ยืนยัน)');
+  }finally{
+    busy = false;
   }
 }
 
 /* ---------- โหมดยืนยัน ---------- */
 let pendingCode = null;
+let lastCode = null, lastAt = 0, busy = false;
 function handleScan(code){
   code = (code||'').trim().toUpperCase();
   if(!code) return;
+  const now = Date.now();
+  // กันยิงรัวโค้ดเดิม และกันส่งซ้อนระหว่างรอยืนยัน/กำลังส่ง
+  if(busy || pendingCode) return;
+  if(code === lastCode && now - lastAt < 3000) return;
+  lastCode = code; lastAt = now;
   beep();
   if($('confirmToggle').checked){
     pendingCode = code;
