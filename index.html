@@ -63,14 +63,15 @@
   .foldhead{cursor:pointer;display:flex;justify-content:space-between;align-items:center}
   .foldbody{display:none;margin-top:8px}
   .foldbody.open{display:block}
-  /* ---- เลือกแถวปลายทาง ---- */
   .banner{padding:10px 12px;border-radius:10px;background:var(--tap);border:1px solid var(--line);
     font-size:14px;color:var(--sub);margin-bottom:10px;text-align:center}
   .banner.sel{background:rgba(18,183,106,.14);border-color:var(--ok);color:var(--ink);font-weight:700}
-  #rowList{max-height:280px;overflow:auto;margin-top:8px}
+  #rowList{max-height:300px;overflow:auto;margin-top:8px}
   .rowitem{display:flex;justify-content:space-between;align-items:center;gap:10px;
     padding:11px 12px;background:#0d151d;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;cursor:pointer}
   .rowitem.sel{border-color:var(--ok);background:rgba(18,183,106,.10)}
+  .rowitem.addnew{border-style:dashed;border-color:var(--brand)}
+  .rowitem.addnew.sel{border-color:var(--ok);border-style:solid}
   .rowitem b{font-size:14px}
   .rowitem .rc{font-size:12px;color:var(--sub);margin-top:2px}
   .rowitem .tk{font-size:12px;color:var(--sub);letter-spacing:.3px;text-align:right}
@@ -85,7 +86,7 @@
     <h1>Wann-FinTrack<small>ยิงเลขแทร็คกิ้งเข้าชีต · แผนกการเงิน</small></h1>
   </header>
 
-  <!-- ตั้งค่า (พับเก็บได้) -->
+  <!-- ตั้งค่า -->
   <div class="card">
     <div class="foldhead" id="foldHead">
       <b>⚙️ ตั้งค่าการเชื่อมต่อ</b><span id="foldArrow">▸</span>
@@ -100,14 +101,14 @@
     </div>
   </div>
 
-  <!-- เลือกแถวปลายทาง -->
+  <!-- เลือกปลายทาง -->
   <div class="card">
-    <button class="btn gray small" id="loadBtn">🔄 โหลดรายการจากชีต</button>
+    <button class="btn gray small" id="loadBtn">🔄 โหลดรายการแถวเดิมจากชีต</button>
     <div class="toggle">
       <span>แสดงเฉพาะแถวที่รอเลข</span>
       <label class="switch"><input type="checkbox" id="onlyBlank" checked><span class="slider"></span></label>
     </div>
-    <div id="rowList"><div class="hint">กด "โหลดรายการ" เพื่อดึงแถวจากชีตมาเลือก (ถ้าไม่เลือก = โหมดอัตโนมัติ)</div></div>
+    <div id="rowList"></div>
   </div>
 
   <!-- สแกน -->
@@ -119,10 +120,7 @@
 
     <div class="toggle">
       <span>ยืนยันก่อนส่ง (แนะนำ)</span>
-      <label class="switch">
-        <input type="checkbox" id="confirmToggle" checked>
-        <span class="slider"></span>
-      </label>
+      <label class="switch"><input type="checkbox" id="confirmToggle" checked><span class="slider"></span></label>
     </div>
 
     <div class="result" id="result">
@@ -144,14 +142,12 @@
     </div>
   </div>
 
-  <!-- ประวัติรอบนี้ -->
   <div class="logtitle"><span>ประวัติการยิงรอบนี้</span><span id="count">0 รายการ</span></div>
   <div id="log"></div>
 
 </div>
 
 <script>
-/* ---------- เก็บ/อ่านค่าตั้ง ---------- */
 function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
 function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
 function escapeHtml(s){ return (s||'').toString().replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -166,13 +162,11 @@ function setFold(open){ foldBody.classList.toggle('open',open); foldArrow.textCo
 setFold(!cfg.url);
 $('foldHead').onclick = () => setFold(!foldBody.classList.contains('open'));
 $('saveCfg').onclick = () => {
-  cfg.url = $('cfgUrl').value.trim();
-  cfg.token = $('cfgToken').value.trim();
+  cfg.url = $('cfgUrl').value.trim(); cfg.token = $('cfgToken').value.trim();
   lsSet('scan_url', cfg.url); lsSet('scan_token', cfg.token);
   setFold(false); toast('บันทึกแล้ว');
 };
 
-/* ---------- เสียง/สั่น ---------- */
 let audioCtx = null;
 function beep(){
   try{
@@ -185,45 +179,49 @@ function beep(){
   try{ navigator.vibrate && navigator.vibrate(120); }catch(e){}
 }
 
-/* ---------- ผลลัพธ์ + ประวัติ ---------- */
 const sentThisSession = new Set();
 let logCount = 0;
 function showResult(kind, num, msg){
-  const r = $('result');
-  r.className = 'result show ' + kind;
-  $('resNum').textContent = num || '';
-  $('resMsg').textContent = msg || '';
+  const r = $('result'); r.className = 'result show ' + kind;
+  $('resNum').textContent = num || ''; $('resMsg').textContent = msg || '';
 }
 function addLog(kind, num, note){
-  logCount++;
-  $('count').textContent = logCount + ' รายการ';
+  logCount++; $('count').textContent = logCount + ' รายการ';
   const t = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  const el = document.createElement('div');
-  el.className = 'logitem';
+  const el = document.createElement('div'); el.className = 'logitem';
   el.innerHTML = '<span class="dot '+kind+'"></span><b>'+num+'</b> '+(note||'')+'<span>'+t+'</span>';
   $('log').prepend(el);
 }
 function toast(m){ showResult('ok','',m); setTimeout(()=>$('result').classList.remove('show'),1500); }
 
-/* ---------- เลือกแถวปลายทาง ---------- */
+/* ---------- เลือกปลายทาง ---------- */
 let rowsData = [];
-let selectedRow = null;
+let selectedRow = null; // null=อัตโนมัติ | 'NEW'=ต่อแถวใหม่ | ตัวเลข=แถวนั้น
 
 async function loadRows(){
   if(!cfg.url){ setFold(true); showResult('err','','ยังไม่ได้ตั้งค่าลิงก์ Web App'); return; }
-  $('rowList').innerHTML = '<div class="hint">กำลังโหลด...</div>';
+  const list = $('rowList');
+  list.innerHTML = '<div class="hint">กำลังโหลด...</div>';
   try{
     const res = await fetch(cfg.url, { method:'POST', body:new URLSearchParams({ token:cfg.token, action:'list' }) });
     const data = await res.json();
     if(data.ok){ rowsData = data.rows || []; renderRows(); }
-    else { $('rowList').innerHTML = '<div class="hint">โหลดไม่ได้: '+escapeHtml(data.msg||'')+'</div>'; }
+    else { rowsData=[]; renderRows(); showResult('err','','โหลดไม่ได้: '+(data.msg||'')); }
   }catch(e){
-    $('rowList').innerHTML = '<div class="hint">โหลดไม่ได้ (อ่านผลไม่ได้) — เช็คลิงก์/รหัส</div>';
+    rowsData=[]; renderRows();
+    showResult('err','','โหลดไม่ได้ — ถ้าเพิ่งแก้ Apps Script ต้อง Deploy เวอร์ชันใหม่ก่อน');
   }
 }
 function renderRows(){
-  const onlyBlank = $('onlyBlank').checked;
   const list = $('rowList'); list.innerHTML = '';
+  // ตัวเลือกถาวร: ต่อแถวใหม่
+  const addNew = document.createElement('div');
+  addNew.className = 'rowitem addnew' + (selectedRow==='NEW' ? ' sel':'');
+  addNew.innerHTML = '<div><b>➕ เพิ่มเป็นแถวใหม่ด้านล่างสุด</b><div class="rc">ใช้เมื่อจดหมายฉบับนี้ยังไม่มีในชีต</div></div>';
+  addNew.onclick = ()=>{ selectedRow='NEW'; renderRows(); updateBanner(); };
+  list.appendChild(addNew);
+
+  const onlyBlank = $('onlyBlank').checked;
   let shown = 0;
   rowsData.forEach(r=>{
     if(onlyBlank && r.track) return;
@@ -232,29 +230,36 @@ function renderRows(){
     div.className = 'rowitem' + (selectedRow===r.row ? ' sel' : '');
     const right = r.track ? ('<span class="tk">'+escapeHtml(r.track)+'</span>') : '<span class="wait">รอเลข</span>';
     div.innerHTML = '<div><b>แถว '+r.row+'</b><div class="rc">'+escapeHtml(r.recipient||'')+'</div></div>'+right;
-    div.onclick = ()=>{ selectedRow = r.row; renderRows(); updateBanner(); };
+    div.onclick = ()=>{ selectedRow=r.row; renderRows(); updateBanner(); };
     list.appendChild(div);
   });
-  if(shown===0){
-    list.innerHTML = '<div class="hint">'+(rowsData.length ? 'ทุกแถวมีเลขครบแล้ว (ปิดตัวกรองเพื่อดูทั้งหมด)' : 'ยังไม่มีข้อมูล — กดโหลดรายการ')+'</div>';
+  if(!rowsData.length){
+    const h=document.createElement('div'); h.className='hint';
+    h.textContent='ยังไม่ได้โหลดรายการ — กด "โหลดรายการแถวเดิม" ถ้าจะลงแถวที่มีอยู่';
+    list.appendChild(h);
+  }else if(shown===0){
+    const h=document.createElement('div'); h.className='hint';
+    h.textContent='ทุกแถวมีเลขครบแล้ว (ปิดตัวกรองเพื่อดูทั้งหมด)';
+    list.appendChild(h);
   }
 }
 function updateBanner(){
   const b = $('targetBanner');
-  if(selectedRow){
+  if(selectedRow==='NEW'){
+    b.className='banner sel'; b.textContent='จะต่อแถวใหม่ด้านล่างสุด';
+  }else if(selectedRow){
     const r = rowsData.find(x=>x.row===selectedRow);
-    b.className = 'banner sel';
-    b.textContent = 'จะลงแถวที่ '+selectedRow+(r && r.recipient ? (' — '+r.recipient) : '');
+    b.className='banner sel';
+    b.textContent='จะลงแถวที่ '+selectedRow+(r&&r.recipient?(' — '+r.recipient):'');
   }else{
-    b.className = 'banner';
-    b.textContent = 'โหมดอัตโนมัติ: เติมช่องว่างถัดไป';
+    b.className='banner'; b.textContent='โหมดอัตโนมัติ: เติมช่องว่างถัดไป';
   }
 }
 function advanceTarget(curRow){
   const idx = rowsData.findIndex(x=>x.row===curRow);
   let next = null;
   for(let i=idx+1;i<rowsData.length;i++){ if(!rowsData[i].track){ next = rowsData[i].row; break; } }
-  selectedRow = next; // ไม่มีแถวว่างถัดไป = กลับโหมดอัตโนมัติ
+  selectedRow = next;
 }
 $('loadBtn').onclick = loadRows;
 $('onlyBlank').onchange = renderRows;
@@ -268,23 +273,32 @@ async function sendToSheet(code){
   busy = true;
   try{
     const params = { token:cfg.token, tracking:code };
-    if(selectedRow) params.row = selectedRow;
+    if(selectedRow==='NEW') params.mode='append';
+    else if(selectedRow) params.row = selectedRow;
+
     const res = await fetch(cfg.url, { method:'POST', body:new URLSearchParams(params) });
     const data = await res.json();
+
     if(data.ok){
       sentThisSession.add(code);
-      const r = rowsData.find(x=>x.row===data.row);
-      if(r) r.track = code;
-      const note = data.overwrote ? ' (เขียนทับ)' : '';
-      showResult('ok', code, '✔ ลงแถวที่ '+data.row+' — '+(data.recipient||'')+note);
-      addLog('ok', code, 'แถว '+data.row);
-      if(selectedRow) advanceTarget(data.row);
+      if(data.appended){
+        rowsData.push({ row:data.row, recipient:'— แถวใหม่ —', track:code });
+        showResult('ok', code, '✔ ต่อแถวใหม่ที่ '+data.row);
+        addLog('ok', code, 'แถวใหม่ '+data.row);
+      }else{
+        const r = rowsData.find(x=>x.row===data.row);
+        if(r) r.track = code;
+        const note = data.overwrote ? ' (เขียนทับ)' : '';
+        showResult('ok', code, '✔ ลงแถวที่ '+data.row+' — '+(data.recipient||'')+note);
+        addLog('ok', code, 'แถว '+data.row);
+        if(selectedRow && selectedRow!=='NEW') advanceTarget(data.row);
+      }
       renderRows(); updateBanner();
     }else if(data.code==='DUP'){
       showResult('warn', code, '⚠ เลขนี้มีอยู่แล้ว (แถว '+(data.row||'?')+')');
       addLog('warn', code, 'ซ้ำ');
     }else if(data.code==='FULL'){
-      showResult('warn', code, '⚠ ไม่มีช่องว่างในคอลัมน์ G — เลือกแถวเองด้านบน');
+      showResult('warn', code, '⚠ ไม่มีช่องว่าง — แตะ ➕ ต่อแถวใหม่ หรือเลือกแถวด้านบน');
       addLog('warn', code, 'ไม่มีช่องว่าง');
     }else{
       showResult('err', code, '✖ '+(data.msg||'ส่งไม่สำเร็จ'));
@@ -299,7 +313,7 @@ async function sendToSheet(code){
   }
 }
 
-/* ---------- โหมดยืนยัน + กันสแกนรัว ---------- */
+/* ---------- ยืนยัน + กันสแกนรัว ---------- */
 let pendingCode = null;
 let lastCode = null, lastAt = 0, busy = false;
 function handleScan(code){
@@ -325,24 +339,16 @@ $('btnConfirm').onclick = () => {
   sendToSheet(c); resumeScan();
 };
 $('btnCancel').onclick = () => {
-  $('confirmRow').style.display='none';
-  pendingCode=null;
-  $('result').classList.remove('show');
-  resumeScan();
+  $('confirmRow').style.display='none'; pendingCode=null;
+  $('result').classList.remove('show'); resumeScan();
 };
 
 /* ---------- กล้อง ---------- */
 let qr = null, running = false;
 const fmt = (typeof Html5QrcodeSupportedFormats!=='undefined') ? [
-  Html5QrcodeSupportedFormats.CODE_128,
-  Html5QrcodeSupportedFormats.CODE_39,
-  Html5QrcodeSupportedFormats.QR_CODE
+  Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39, Html5QrcodeSupportedFormats.QR_CODE
 ] : undefined;
-function qrbox(w,h){
-  const min = Math.min(w,h);
-  const width = Math.floor(Math.min(320, min*0.9));
-  return { width:width, height:Math.floor(width*0.55) };
-}
+function qrbox(w,h){ const min=Math.min(w,h); const width=Math.floor(Math.min(320,min*0.9)); return {width:width,height:Math.floor(width*0.55)}; }
 async function startScan(){
   if(running) return;
   try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
@@ -350,9 +356,7 @@ async function startScan(){
   try{
     await qr.start({ facingMode:"environment" }, { fps:10, qrbox:qrbox, aspectRatio:1.4 },
       (decoded)=>handleScan(decoded), ()=>{});
-    running = true;
-    $('startBtn').style.display='none';
-    $('stopBtn').style.display='block';
+    running = true; $('startBtn').style.display='none'; $('stopBtn').style.display='block';
   }catch(err){
     showResult('err','','เปิดกล้องไม่ได้: '+err+' (ต้องเปิดผ่าน https และอนุญาตกล้อง)');
   }
@@ -360,20 +364,20 @@ async function startScan(){
 async function stopScan(){
   if(!qr||!running) return;
   try{ await qr.stop(); await qr.clear(); }catch(e){}
-  running=false;
-  $('startBtn').style.display='block';
-  $('stopBtn').style.display='none';
+  running=false; $('startBtn').style.display='block'; $('stopBtn').style.display='none';
 }
 function pauseScan(){ try{ qr && running && qr.pause(true); }catch(e){} }
 function resumeScan(){ try{ qr && running && qr.resume(); }catch(e){} }
 $('startBtn').onclick = startScan;
 $('stopBtn').onclick  = stopScan;
 
-/* ---------- ป้อนมือ ---------- */
 $('manualSend').onclick = () => {
   const v = $('manualInput').value.trim().toUpperCase();
   if(v){ sendToSheet(v); $('manualInput').value=''; }
 };
+
+/* เริ่มต้น: โชว์ปุ่ม ➕ ต่อแถวใหม่ ทันที */
+renderRows(); updateBanner();
 </script>
 </body>
 </html>
